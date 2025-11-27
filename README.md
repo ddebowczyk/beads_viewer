@@ -165,7 +165,7 @@ graph TD
 | 9 | **Topo Sort** | Valid execution order | Work queue foundation |
 
 ### 1. PageRank (Dependency Authority)
-**The Math:** Originally designed to rank web pages by "importance" based on incoming links, PageRank models a "random surfer" walking the graph. In our dependency graph ($u \rightarrow v$ implies $u$ depends on $v$), we treat dependencies as "votes" of importance.
+**The Math:** Originally designed to rank web pages by "importance" based on incoming links, PageRank models a "random surfer" walking the graph. In our dependency graph (u → v implies u depends on v), we treat dependencies as "votes" of importance.
 $$
 PR(v) = \frac{1-d}{N} + d \sum_{u \in M(v)} \frac{PR(u)}{L(u)}
 $$
@@ -195,7 +195,7 @@ $$C_B(v) = \sum_{s \neq v \neq t} \frac{\sigma_{st}(v)}{\sigma_{st}}$$
 
 ### 4. Critical Path (Longest Path in DAG)
 **The Math:** In a DAG, the longest path represents the minimum time required to complete the project (assuming infinite parallelism). `bv` computes this recursively:
-$$Impact(u) = 1 + \max(\{Impact(v) \mid u \rightarrow v\})$$
+$$Impact(u) = 1 + \max(\{Impact(v) \mid u \to v\})$$
 
 **The Intuition:** If you hold the graph by its "leaf" nodes (tasks with no dependencies) and let it dangle, the tasks at the very top that support the longest chains are carrying the most weight.
 
@@ -213,8 +213,9 @@ Where $\lambda$ is the largest eigenvalue of the adjacency matrix and $N(i)$ are
 
 ### 6. Degree Centrality (Direct Connections)
 **The Math:** The simplest centrality measure—just count the edges.
-$$C_D^{in}(v) = |{u : u \rightarrow v}|$$
-$$C_D^{out}(v) = |{u : v \rightarrow u}|$$
+$$C_D^{in}(v) = |\{u : u \to v\}|$$
+
+$$C_D^{out}(v) = |\{u : v \to u\}|$$
 
 **The Intuition:**
 *   **In-Degree:** How many tasks depend on me? (I am a blocker)
@@ -238,7 +239,7 @@ Where $|E|$ is the edge count and $|V|$ is the node count. For a directed graph,
 *   **High Density (> 0.15):** Warning. Overly coupled project. Consider breaking into smaller modules.
 
 ### 8. Cycle Detection (Circular Dependencies)
-**The Math:** A cycle in a directed graph is a path $v_1 \rightarrow v_2 \rightarrow \cdots \rightarrow v_k \rightarrow v_1$ where the start and end nodes are identical. `bv` uses Tarjan's algorithm variant via `topo.DirectedCyclesIn` to enumerate all elementary cycles.
+**The Math:** A cycle in a directed graph is a path v₁ → v₂ → ⋯ → vₖ → v₁ where the start and end nodes are identical. `bv` uses Tarjan's algorithm variant via `topo.DirectedCyclesIn` to enumerate all elementary cycles.
 
 **The Intuition:** If A depends on B, and B depends on A, neither can ever be completed. This is a logical impossibility that must be resolved.
 
@@ -248,7 +249,7 @@ Where $|E|$ is the edge count and $|V|$ is the node count. For a directed graph,
 *   Scope confusion (A and B should be merged into a single task)
 
 ### 9. Topological Sort (Execution Order)
-**The Math:** A topological ordering of a DAG is a linear sequence of all vertices such that for every edge $u \rightarrow v$, vertex $u$ appears before $v$ in the sequence. Only acyclic graphs have valid topological orderings.
+**The Math:** A topological ordering of a DAG is a linear sequence of all vertices such that for every edge u → v, vertex u appears before v in the sequence. Only acyclic graphs have valid topological orderings.
 
 **The Intuition:** If you must complete tasks in dependency order, topological sort gives you *a* valid order (there may be many).
 

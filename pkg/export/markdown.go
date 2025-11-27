@@ -130,9 +130,11 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 	for _, i := range issues {
 		safeID := sanitizeMermaidID(i.ID)
 		safeTitle := sanitizeMermaidText(i.Title)
+		// Also sanitize the ID for the label in case it contains quotes or special chars
+		safeLabelID := sanitizeMermaidText(i.ID)
 
 		// Node definition with status-based styling
-		sb.WriteString(fmt.Sprintf("    %s[\"%s<br/>%s\"]\n", safeID, i.ID, safeTitle))
+		sb.WriteString(fmt.Sprintf("    %s[\"%s<br/>%s\"]\n", safeID, safeLabelID, safeTitle))
 
 		// Apply class based on status
 		var class string
@@ -150,6 +152,9 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 
 		// Add edges for dependencies
 		for _, dep := range i.Dependencies {
+			if dep == nil {
+				continue
+			}
 			// Only add edges to issues that exist in our set
 			if !issueIDs[dep.DependsOnID] {
 				continue
@@ -190,7 +195,12 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 			sb.WriteString(fmt.Sprintf("| **Closed** | %s |\n", i.ClosedAt.Format("2006-01-02 15:04")))
 		}
 		if len(i.Labels) > 0 {
-			sb.WriteString(fmt.Sprintf("| **Labels** | %s |\n", strings.Join(i.Labels, ", ")))
+			// Escape pipe characters in labels to avoid breaking markdown table
+			escapedLabels := make([]string, len(i.Labels))
+			for idx, label := range i.Labels {
+				escapedLabels[idx] = strings.ReplaceAll(label, "|", "\\|")
+			}
+			sb.WriteString(fmt.Sprintf("| **Labels** | %s |\n", strings.Join(escapedLabels, ", ")))
 		}
 		sb.WriteString("\n")
 
@@ -217,6 +227,9 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 		if len(i.Dependencies) > 0 {
 			sb.WriteString("### Dependencies\n\n")
 			for _, dep := range i.Dependencies {
+				if dep == nil {
+					continue
+				}
 				icon := "🔗"
 				if dep.Type == model.DepBlocks {
 					icon = "⛔"
@@ -229,6 +242,9 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 		if len(i.Comments) > 0 {
 			sb.WriteString("### Comments\n\n")
 			for _, c := range i.Comments {
+				if c == nil {
+					continue
+				}
 				escapedText := strings.ReplaceAll(c.Text, "\n", "\n> ")
 				sb.WriteString(fmt.Sprintf("> **%s** (%s)\n>\n> %s\n\n",
 					c.Author, c.CreatedAt.Format("2006-01-02"), escapedText))
