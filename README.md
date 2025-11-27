@@ -1414,10 +1414,6 @@ The UI uses a visually distinct, high-contrast theme inspired by Dracula Princip
 
 ---
 
-## 🤝 Contributing
-
-We welcome contributions! Please see `AGENTS.md` for guidelines on our AI-first development workflow.
-
 ## 📄 License
 
 MIT License
