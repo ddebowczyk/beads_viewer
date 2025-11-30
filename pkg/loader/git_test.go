@@ -187,6 +187,64 @@ func TestParseDateStringUsesLocalForDateOnly(t *testing.T) {
 	}
 }
 
+func TestRevisionCacheExpires(t *testing.T) {
+	repoDir, cleanup := setupTestGitRepo(t)
+	defer cleanup()
+
+	loader := NewGitLoaderWithCacheTTL(repoDir, 5*time.Millisecond)
+
+	// First load populates cache
+	if _, err := loader.LoadAt("HEAD"); err != nil {
+		t.Fatalf("LoadAt failed: %v", err)
+	}
+	if stats := loader.CacheStats(); stats.ValidEntries != 1 {
+		t.Fatalf("expected 1 valid cache entry, got %d", stats.ValidEntries)
+	}
+
+	// Wait for entry to expire
+	time.Sleep(10 * time.Millisecond)
+
+	// Cache should report zero valid entries, and LoadAt should still succeed (re-fetch)
+	if stats := loader.CacheStats(); stats.ValidEntries != 0 {
+		t.Fatalf("expected cache entry to expire, got %d valid", stats.ValidEntries)
+	}
+	if _, err := loader.LoadAt("HEAD"); err != nil {
+		t.Fatalf("LoadAt after expiry failed: %v", err)
+	}
+}
+
+func TestGetCommitsBetween(t *testing.T) {
+	repoDir, cleanup := setupTestGitRepo(t)
+	defer cleanup()
+
+	// Add a third commit touching beads file
+	beadsFile := filepath.Join(repoDir, ".beads", "beads.base.jsonl")
+	updated := `{"id":"ISSUE-1","title":"First issue","status":"open","priority":1,"issue_type":"task"}
+{"id":"ISSUE-2","title":"Second issue","status":"open","priority":2,"issue_type":"task"}
+{"id":"ISSUE-3","title":"Third issue","status":"open","priority":3,"issue_type":"task","assignee":"bob"}
+`
+	if err := os.WriteFile(beadsFile, []byte(updated), 0644); err != nil {
+		t.Fatalf("update beads file: %v", err)
+	}
+	runGit(t, repoDir, "add", ".")
+	runGit(t, repoDir, "commit", "-m", "Assign third issue")
+
+	loader := NewGitLoader(repoDir)
+
+	// from first commit to HEAD should include the two newer commits
+	fromSHA := strings.TrimSpace(runGitOutput(t, repoDir, "rev-parse", "HEAD~2"))
+	revs, err := loader.GetCommitsBetween(fromSHA, "HEAD")
+	if err != nil {
+		t.Fatalf("GetCommitsBetween failed: %v", err)
+	}
+	if len(revs) != 2 {
+		t.Fatalf("expected 2 commits between first and HEAD, got %d", len(revs))
+	}
+	if revs[0].Message == "" || revs[1].Message == "" {
+		t.Fatalf("expected commit messages to be populated: %+v", revs)
+	}
+}
+
 func TestGitLoader_Cache(t *testing.T) {
 	repoDir, cleanup := setupTestGitRepo(t)
 	defer cleanup()
