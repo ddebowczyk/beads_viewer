@@ -251,6 +251,53 @@ func TestCalculatorBlockingCascade(t *testing.T) {
 	if len(cascade.Details) != 2 {
 		t.Fatalf("expected 2 downstream ids, got %d", len(cascade.Details))
 	}
+	// Verify new fields (bv-165)
+	if cascade.UnblocksCount != 2 {
+		t.Fatalf("expected UnblocksCount=2, got %d", cascade.UnblocksCount)
+	}
+}
+
+// TestCalculatorBlockingCascadeWithPriorities verifies the downstream priority sum calculation (bv-165)
+func TestCalculatorBlockingCascadeWithPriorities(t *testing.T) {
+	issues := []model.Issue{
+		{ID: "A", Title: "Blocker A", Status: model.StatusOpen, Priority: 2},
+		{ID: "B", Title: "Blocked by A (P1)", Status: model.StatusOpen, Priority: 1, Dependencies: []*model.Dependency{{DependsOnID: "A", Type: model.DepBlocks}}},
+		{ID: "C", Title: "Blocked by A (P3)", Status: model.StatusOpen, Priority: 3, Dependencies: []*model.Dependency{{DependsOnID: "A", Type: model.DepBlocks}}},
+		{ID: "D", Title: "Blocked by A (P0 critical)", Status: model.StatusOpen, Priority: 0, Dependencies: []*model.Dependency{{DependsOnID: "A", Type: model.DepBlocks}}},
+	}
+	bl := &baseline.Baseline{Stats: baseline.GraphStats{}}
+	current := &baseline.Baseline{Stats: baseline.GraphStats{}}
+	cfg := DefaultConfig()
+	cfg.BlockingCascadeInfo = 2
+	cfg.BlockingCascadeWarning = 5
+
+	calc := NewCalculator(bl, current, cfg)
+	calc.SetIssues(issues)
+
+	result := calc.Calculate()
+
+	var cascade Alert
+	found := false
+	for _, a := range result.Alerts {
+		if a.Type == AlertBlockingCascade && a.IssueID == "A" {
+			found = true
+			cascade = a
+		}
+	}
+	if !found {
+		t.Fatalf("expected blocking cascade alert for A")
+	}
+
+	// Verify UnblocksCount
+	if cascade.UnblocksCount != 3 {
+		t.Fatalf("expected UnblocksCount=3, got %d", cascade.UnblocksCount)
+	}
+
+	// Verify DownstreamPrioritySum: P1 + P3 + P0 = 1 + 3 + 0 = 4
+	expectedPrioritySum := 4
+	if cascade.DownstreamPrioritySum != expectedPrioritySum {
+		t.Fatalf("expected DownstreamPrioritySum=%d, got %d", expectedPrioritySum, cascade.DownstreamPrioritySum)
+	}
 }
 
 func TestResultSummary(t *testing.T) {
@@ -1265,5 +1312,43 @@ func TestCalculatorLargeValues(t *testing.T) {
 
 	if result.HasDrift {
 		t.Error("Large stable values should not trigger drift")
+	}
+}
+
+func TestCheckBlocked_StrictThresholds(t *testing.T) {
+	bl := &baseline.Baseline{Stats: baseline.GraphStats{BlockedCount: 5}}
+
+	tests := []struct {
+		name      string
+		threshold int
+		curCount  int
+		wantAlert bool
+	}{
+		{"threshold 0, delta 0", 0, 5, false},  // Should NOT alert (fixed bug)
+		{"threshold 0, delta 1", 0, 6, true},   // Should alert (any increase)
+		{"threshold 5, delta 4", 5, 9, false},  // Should not alert (below threshold)
+		{"threshold 5, delta 5", 5, 10, true},  // Should alert (at threshold)
+		{"threshold 5, delta 0", 5, 5, false},  // Should not alert
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cur := &baseline.Baseline{Stats: baseline.GraphStats{BlockedCount: tt.curCount}}
+			cfg := &Config{BlockedIncreaseThreshold: tt.threshold}
+			calc := NewCalculator(bl, cur, cfg)
+			res := calc.Calculate()
+
+			gotAlert := false
+			for _, alert := range res.Alerts {
+				if alert.Type == AlertBlockedIncrease {
+					gotAlert = true
+					break
+				}
+			}
+
+			if gotAlert != tt.wantAlert {
+				t.Errorf("wantAlert %v, got %v", tt.wantAlert, gotAlert)
+			}
+		})
 	}
 }

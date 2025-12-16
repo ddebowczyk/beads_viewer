@@ -52,6 +52,10 @@ type Alert struct {
 	IssueID     string    `json:"issue_id,omitempty"`
 	Label       string    `json:"label,omitempty"`
 	DetectedAt  time.Time `json:"detected_at,omitempty"`
+
+	// Blocking cascade specific fields (bv-165)
+	UnblocksCount         int `json:"unblocks_count,omitempty"`
+	DownstreamPrioritySum int `json:"downstream_priority_sum,omitempty"`
 }
 
 // Result contains the complete drift analysis
@@ -257,7 +261,7 @@ func (c *Calculator) checkBlocked(result *Result) {
 	curBlocked := c.current.Stats.BlockedCount
 	delta := curBlocked - blBlocked
 
-	if delta >= c.config.BlockedIncreaseThreshold {
+	if delta > 0 && delta >= c.config.BlockedIncreaseThreshold {
 		result.Alerts = append(result.Alerts, Alert{
 			Type:        AlertBlockedIncrease,
 			Severity:    SeverityWarning,
@@ -395,6 +399,7 @@ func (c *Calculator) checkStaleness(result *Result) {
 
 // checkBlockingCascade raises alerts for issues whose completion would unblock many dependents.
 // Uses existing dependency graph; no alert if issues not provided.
+// Includes urgency scoring via downstream priority sum (bv-165).
 func (c *Calculator) checkBlockingCascade(result *Result) {
 	if len(c.issues) == 0 {
 		return
@@ -403,6 +408,12 @@ func (c *Calculator) checkBlockingCascade(result *Result) {
 	warnThresh := c.config.BlockingCascadeWarning
 	if infoThresh <= 0 && warnThresh <= 0 {
 		return
+	}
+
+	// Build issue lookup map for priority calculation (bv-165)
+	issueMap := make(map[string]model.Issue, len(c.issues))
+	for _, iss := range c.issues {
+		issueMap[iss.ID] = iss
 	}
 
 	analyzer := analysis.NewAnalyzer(c.issues)
@@ -424,13 +435,24 @@ func (c *Calculator) checkBlockingCascade(result *Result) {
 			continue
 		}
 
+		// Calculate downstream priority sum for urgency scoring (bv-165)
+		// Lower priority values = higher importance (P0=critical, P4=backlog)
+		prioritySum := 0
+		for _, unblockedID := range unblocks {
+			if unblockedIssue, ok := issueMap[unblockedID]; ok {
+				prioritySum += unblockedIssue.Priority
+			}
+		}
+
 		result.Alerts = append(result.Alerts, Alert{
-			Type:       AlertBlockingCascade,
-			Severity:   severity,
-			Message:    fmt.Sprintf("Completing %s unblocks %d downstream item(s)", iss.ID, count),
-			IssueID:    iss.ID,
-			DetectedAt: time.Now().UTC(),
-			Details:    unblocks,
+			Type:                  AlertBlockingCascade,
+			Severity:              severity,
+			Message:               fmt.Sprintf("Completing %s unblocks %d downstream item(s)", iss.ID, count),
+			IssueID:               iss.ID,
+			DetectedAt:            time.Now().UTC(),
+			Details:               unblocks,
+			UnblocksCount:         count,
+			DownstreamPrioritySum: prioritySum,
 		})
 	}
 }
