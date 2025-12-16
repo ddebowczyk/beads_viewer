@@ -8,6 +8,118 @@
  * - Materialized views for fast queries
  */
 
+// ============================================================================
+// Error Handling and Diagnostics
+// ============================================================================
+
+/**
+ * Global error state for the application
+ */
+const ERROR_STATE = {
+  error: null,           // Current error object or null
+  errors: [],            // Error history
+};
+
+/**
+ * Diagnostics state for debugging
+ */
+const DIAGNOSTICS = {
+  wasm: false,           // sql.js WASM loaded
+  opfs: null,            // OPFS available (null = not checked, true/false)
+  graphWasm: false,      // bv_graph WASM loaded
+  dbSource: 'unknown',   // 'network' | 'cache' | 'chunks'
+  dbSizeBytes: 0,        // Database size in bytes
+  issueCount: 0,         // Number of issues
+  loadTimeMs: 0,         // Total load time
+  startTime: Date.now(), // When loading started
+  queryCount: 0,         // Number of queries executed
+  queryErrors: 0,        // Number of query errors
+};
+
+/**
+ * Show an error to the user with optional actions
+ * @param {Object} options - Error display options
+ * @param {string} options.title - Error title
+ * @param {string} options.message - User-friendly error message
+ * @param {string} [options.details] - Technical details (stack trace, etc)
+ * @param {Array} [options.actions] - Array of action buttons
+ * @param {boolean} [options.dismissible] - Whether the error can be dismissed (default true)
+ */
+function showError({ title, message, details = null, actions = [], dismissible = true }) {
+  const error = {
+    id: Date.now(),
+    title,
+    message,
+    details,
+    actions,
+    dismissible,
+    timestamp: new Date().toISOString(),
+  };
+
+  ERROR_STATE.error = error;
+  ERROR_STATE.errors.push(error);
+
+  // Log to console for debugging
+  console.error(`[Error] ${title}: ${message}`, details);
+
+  return error;
+}
+
+/**
+ * Clear the current error
+ */
+function clearError() {
+  ERROR_STATE.error = null;
+}
+
+/**
+ * Safe query wrapper with error handling and fallback
+ * @param {string} sql - SQL query
+ * @param {Array} params - Query parameters
+ * @param {*} fallback - Value to return on error
+ * @returns {Object} Query result with success flag
+ */
+function safeQuery(sql, params = [], fallback = []) {
+  if (!DB_STATE.db) {
+    console.warn('[safeQuery] Database not loaded');
+    return { success: false, data: fallback, error: 'Database not loaded' };
+  }
+
+  DIAGNOSTICS.queryCount++;
+
+  try {
+    const result = DB_STATE.db.exec(sql, params);
+    if (!result.length) return { success: true, data: [] };
+
+    const { columns, values } = result[0];
+    const data = values.map(row => {
+      const obj = {};
+      columns.forEach((col, i) => {
+        obj[col] = row[i];
+      });
+      return obj;
+    });
+
+    return { success: true, data };
+  } catch (err) {
+    DIAGNOSTICS.queryErrors++;
+    console.error('[safeQuery] Query failed:', sql, err);
+    return { success: false, data: fallback, error: err.message };
+  }
+}
+
+/**
+ * Show a toast notification (non-blocking)
+ * @param {string} message - Toast message
+ * @param {string} type - Toast type: 'info' | 'success' | 'warning' | 'error'
+ */
+function showToast(message, type = 'info') {
+  // This will be picked up by the Alpine toast component
+  window.dispatchEvent(new CustomEvent('show-toast', {
+    detail: { message, type, id: Date.now() }
+  }));
+}
+
 // Database state
 const DB_STATE = {
   sql: null,          // sql.js library instance
@@ -28,7 +140,10 @@ const GRAPH_STATE = {
  * Initialize sql.js library
  */
 async function initSqlJs() {
-  if (DB_STATE.sql) return DB_STATE.sql;
+  if (DB_STATE.sql) {
+    DIAGNOSTICS.wasm = true;
+    return DB_STATE.sql;
+  }
 
   // Load sql.js from CDN (with WASM)
   const sqlPromise = initSqlJs.cached || (initSqlJs.cached = new Promise(async (resolve, reject) => {
@@ -69,8 +184,20 @@ async function initSqlJs() {
         }
       });
 
+      DIAGNOSTICS.wasm = true;
       resolve(SQL);
     } catch (err) {
+      DIAGNOSTICS.wasm = false;
+      showError({
+        title: 'Browser Compatibility Issue',
+        message: 'This viewer requires WebAssembly support to run SQL queries.',
+        details: err.message,
+        actions: [
+          { label: 'Check Browser Support', url: 'https://caniuse.com/wasm' },
+          { label: 'Reload Page', action: () => location.reload() },
+        ],
+        dismissible: false,
+      });
       reject(err);
     }
   }));
@@ -84,6 +211,8 @@ async function initSqlJs() {
  */
 async function loadFromOPFS(cacheKey) {
   if (!('storage' in navigator) || !navigator.storage.getDirectory) {
+    DIAGNOSTICS.opfs = false;
+    console.info('[OPFS] Not available in this browser');
     return null;
   }
 
@@ -93,11 +222,17 @@ async function loadFromOPFS(cacheKey) {
     const handle = await root.getFileHandle(filename, { create: false });
     const file = await handle.getFile();
     const buffer = await file.arrayBuffer();
+    DIAGNOSTICS.opfs = true;
+    DIAGNOSTICS.dbSizeBytes = buffer.byteLength;
     console.log(`[OPFS] Loaded ${buffer.byteLength} bytes from cache`);
     return new Uint8Array(buffer);
   } catch (err) {
-    if (err.name !== 'NotFoundError') {
-      console.warn('[OPFS] Load failed:', err);
+    if (err.name === 'NotFoundError') {
+      DIAGNOSTICS.opfs = true; // OPFS available, just no cache yet
+    } else {
+      // Private browsing or permission denied
+      DIAGNOSTICS.opfs = false;
+      console.info('[OPFS] Cache unavailable:', err.message);
     }
     return null;
   }
@@ -186,6 +321,7 @@ async function loadDatabase(updateStatus) {
     if (cached) {
       DB_STATE.db = new SQL.Database(cached);
       DB_STATE.source = 'cache';
+      DIAGNOSTICS.dbSource = 'cache';
       return DB_STATE.db;
     }
   }
@@ -194,20 +330,65 @@ async function loadDatabase(updateStatus) {
 
   // Check if database is chunked
   let dbData;
-  if (config?.chunked) {
-    updateStatus?.(`Loading ${config.chunk_count} chunks...`);
-    dbData = await loadChunks(config);
-    DB_STATE.source = 'chunks';
-  } else {
-    // Load single file
-    const response = await fetch('./beads.sqlite3');
-    if (!response.ok) throw new Error(`Database not found: HTTP ${response.status}`);
-    const buffer = await response.arrayBuffer();
-    dbData = new Uint8Array(buffer);
-    DB_STATE.source = 'network';
+  try {
+    if (config?.chunked) {
+      updateStatus?.(`Loading ${config.chunk_count} chunks...`);
+      dbData = await loadChunks(config);
+      DB_STATE.source = 'chunks';
+      DIAGNOSTICS.dbSource = 'chunks';
+    } else {
+      // Load single file - try multiple paths
+      const paths = ['./beads.sqlite3', './data/beads.sqlite3'];
+      let loaded = false;
+
+      for (const path of paths) {
+        try {
+          const response = await fetch(path);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            dbData = new Uint8Array(buffer);
+            DIAGNOSTICS.dbSizeBytes = buffer.byteLength;
+            DB_STATE.source = 'network';
+            DIAGNOSTICS.dbSource = 'network';
+            loaded = true;
+            break;
+          }
+        } catch {
+          // Try next path
+        }
+      }
+
+      if (!loaded) {
+        throw new Error('Database not found at any known path');
+      }
+    }
+  } catch (err) {
+    showError({
+      title: 'Database Not Found',
+      message: 'Could not load the issues database.',
+      details: `${err.message}\n\nThe beads.sqlite3 file may be missing or corrupted.`,
+      actions: [
+        { label: 'Reload Page', action: () => location.reload() },
+      ],
+      dismissible: false,
+    });
+    throw err;
   }
 
-  DB_STATE.db = new SQL.Database(dbData);
+  try {
+    DB_STATE.db = new SQL.Database(dbData);
+  } catch (err) {
+    showError({
+      title: 'Database Corrupted',
+      message: 'The database file could not be opened.',
+      details: err.message,
+      actions: [
+        { label: 'Reload Page', action: () => location.reload() },
+      ],
+      dismissible: false,
+    });
+    throw err;
+  }
 
   // Cache for next time
   if (DB_STATE.cacheKey) {
@@ -1207,6 +1388,10 @@ function beadsApp() {
     loading: true,
     loadingMessage: 'Initializing...',
     error: null,
+    globalError: null,       // Modal error from ERROR_STATE
+    showDiagnostics: false,  // Toggle for diagnostics panel (press 'd')
+    diagnostics: DIAGNOSTICS, // Reference to global diagnostics
+    toasts: [],              // Toast notifications
     view: 'dashboard',
     darkMode: localStorage.getItem('darkMode') === 'true',
 
@@ -1280,11 +1465,34 @@ function beadsApp() {
         document.documentElement.classList.add('dark');
       }
 
+      // Listen for toast events
+      window.addEventListener('show-toast', (e) => {
+        this.toasts.push(e.detail);
+        setTimeout(() => {
+          this.toasts = this.toasts.filter(t => t.id !== e.detail.id);
+        }, 5000);
+      });
+
+      // Listen for keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        // 'd' key toggles diagnostics panel (when not in input)
+        if (e.key === 'd' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+          this.showDiagnostics = !this.showDiagnostics;
+        }
+      });
+
       try {
-        this.loadingMessage = 'Loading sql.js...';
+        this.loadingMessage = 'Loading sql.js WebAssembly...';
         await loadDatabase((msg) => {
           this.loadingMessage = msg;
         });
+
+        // Check for global errors that may have occurred during loading
+        if (ERROR_STATE.error) {
+          this.globalError = ERROR_STATE.error;
+          this.loading = false;
+          return;
+        }
 
         this.dbSource = DB_STATE.source;
         this.loadingMessage = 'Loading data...';
@@ -1292,6 +1500,8 @@ function beadsApp() {
         // Load initial data
         this.meta = getMeta();
         this.stats = getStats();
+        DIAGNOSTICS.issueCount = this.stats.total || 0;
+
         this.topPicks = getTopPicks(5);
         this.recentIssues = getRecentIssues(10);
         this.topByPageRank = getTopByPageRank(10);
@@ -1318,6 +1528,7 @@ function beadsApp() {
         // Initialize WASM graph engine (non-blocking)
         this.loadingMessage = 'Loading graph engine...';
         this.graphReady = await initGraphEngine();
+        DIAGNOSTICS.graphWasm = this.graphReady;
         if (this.graphReady) {
           this.topKSet = getTopKSet(5);
           this.topByBetweenness = getTopByBetweenness(10);
@@ -1329,10 +1540,17 @@ function beadsApp() {
         // Listen for hash changes (browser back/forward)
         window.addEventListener('hashchange', () => this.handleHashChange());
 
+        // Record load time
+        DIAGNOSTICS.loadTimeMs = Date.now() - DIAGNOSTICS.startTime;
+
         this.loading = false;
       } catch (err) {
         console.error('Init failed:', err);
         this.error = err.message || 'Failed to load database';
+        // Sync global error state
+        if (ERROR_STATE.error) {
+          this.globalError = ERROR_STATE.error;
+        }
         this.loading = false;
       }
     },
@@ -1704,6 +1922,23 @@ function beadsApp() {
      * Get issue by ID (wrapper for templates)
      */
     getIssue,
+
+    /**
+     * Dismiss the current error modal
+     */
+    dismissError() {
+      if (this.globalError && this.globalError.dismissible) {
+        this.globalError = null;
+        clearError();
+      }
+    },
+
+    /**
+     * Remove a toast notification
+     */
+    removeToast(id) {
+      this.toasts = this.toasts.filter(t => t.id !== id);
+    },
   };
 }
 
@@ -1750,4 +1985,12 @@ window.beadsViewer = {
   getTopByBetweenness,
   getTopByCriticalPath,
   getCycleInfo,
+
+  // Error handling
+  ERROR_STATE,
+  DIAGNOSTICS,
+  showError,
+  clearError,
+  safeQuery,
+  showToast,
 };

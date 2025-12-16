@@ -3,7 +3,6 @@ package loader
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -231,48 +230,7 @@ func (g *GitLoader) loadFileFromGit(sha, path string) ([]model.Issue, error) {
 		return nil, fmt.Errorf("git show %s:%s failed: %w", sha, path, err)
 	}
 
-	return parseJSONL(out)
-}
-
-// parseJSONL parses JSONL content into issues
-func parseJSONL(data []byte) ([]model.Issue, error) {
-	// Strip BOM from the entire file content if present at start
-	data = stripBOM(data)
-
-	var issues []model.Issue
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-	// Increase buffer size for large lines (issues can be large)
-	const maxCapacity = 1024 * 1024 * 10 // 10MB
-	// Start with 64KB buffer, grow up to maxCapacity
-	buf := make([]byte, 64*1024)
-	scanner.Buffer(buf, maxCapacity)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var issue model.Issue
-		if err := json.Unmarshal(line, &issue); err != nil {
-			// Skip malformed lines
-			continue
-		}
-
-		// Validate issue
-		if err := issue.Validate(); err != nil {
-			// Skip invalid issues
-			continue
-		}
-
-		issues = append(issues, issue)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("scanning JSONL: %w", err)
-	}
-
-	return issues, nil
+	return ParseIssues(bytes.NewReader(out))
 }
 
 // Cache methods

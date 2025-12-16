@@ -1159,6 +1159,186 @@
       </div>
     </div>
 
+    <!-- Error Modal Overlay -->
+    <div x-show="globalError"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+         @click.self="globalError?.dismissible && dismissError()">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        <!-- Error Header -->
+        <div class="bg-red-500 px-6 py-4">
+          <div class="flex items-center space-x-3">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-white" x-text="globalError?.title || 'Error'"></h3>
+          </div>
+        </div>
+        <!-- Error Body -->
+        <div class="px-6 py-4">
+          <p class="text-gray-700 dark:text-gray-300" x-text="globalError?.message"></p>
+          <div x-show="globalError?.details" class="mt-3">
+            <details class="text-sm">
+              <summary class="cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                Technical Details
+              </summary>
+              <pre class="mt-2 p-3 bg-gray-100 dark:bg-gray-900 rounded-lg text-xs overflow-x-auto font-mono text-gray-600 dark:text-gray-400"
+                   x-text="globalError?.details"></pre>
+            </details>
+          </div>
+        </div>
+        <!-- Error Actions -->
+        <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 flex justify-end space-x-3">
+          <template x-for="action in (globalError?.actions || [])" :key="action.label">
+            <button @click="action.handler && action.handler()"
+                    :class="action.primary ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    x-text="action.label"></button>
+          </template>
+          <button x-show="globalError?.dismissible"
+                  @click="dismissError()"
+                  class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="fixed bottom-20 right-4 z-40 space-y-2 max-w-sm">
+      <template x-for="toast in toasts" :key="toast.id">
+        <div x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-x-4"
+             x-transition:enter-end="opacity-100 translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-x-0"
+             x-transition:leave-end="opacity-0 translate-x-4"
+             :class="{
+               'bg-green-500': toast.type === 'success',
+               'bg-red-500': toast.type === 'error',
+               'bg-yellow-500': toast.type === 'warning',
+               'bg-blue-500': toast.type === 'info'
+             }"
+             class="px-4 py-3 rounded-lg shadow-lg text-white text-sm flex items-center justify-between">
+          <span x-text="toast.message"></span>
+          <button @click="removeToast(toast.id)" class="ml-3 hover:opacity-70">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Diagnostics Panel (press 'd' to toggle) -->
+    <div x-show="showDiagnostics"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-x-full"
+         x-transition:enter-end="opacity-100 translate-x-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-x-0"
+         x-transition:leave-end="opacity-0 translate-x-full"
+         class="fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-800 shadow-2xl z-50 overflow-y-auto">
+      <div class="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
+        <h2 class="font-semibold text-gray-900 dark:text-gray-100">Diagnostics</h2>
+        <button @click="showDiagnostics = false" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="p-4 space-y-4">
+        <!-- System Status -->
+        <div>
+          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">System Status</h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">sql.js WASM</span>
+              <span :class="diagnostics.wasm ? 'text-green-500' : 'text-red-500'" x-text="diagnostics.wasm ? 'Loaded' : 'Failed'"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Graph WASM</span>
+              <span :class="diagnostics.graphWasm ? 'text-green-500' : 'text-yellow-500'" x-text="diagnostics.graphWasm ? 'Loaded' : 'Unavailable'"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">OPFS Cache</span>
+              <span :class="diagnostics.opfs === true ? 'text-green-500' : diagnostics.opfs === false ? 'text-red-500' : 'text-gray-400'"
+                    x-text="diagnostics.opfs === true ? 'Available' : diagnostics.opfs === false ? 'Unavailable' : 'Unknown'"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Database Info -->
+        <div>
+          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Database</h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Source</span>
+              <span class="text-gray-900 dark:text-gray-100 font-mono text-xs" x-text="diagnostics.dbSource"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Size</span>
+              <span class="text-gray-900 dark:text-gray-100" x-text="(diagnostics.dbSizeBytes / 1024).toFixed(1) + ' KB'"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Issues</span>
+              <span class="text-gray-900 dark:text-gray-100" x-text="diagnostics.issueCount"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance -->
+        <div>
+          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Performance</h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Load Time</span>
+              <span class="text-gray-900 dark:text-gray-100" x-text="diagnostics.loadTimeMs + ' ms'"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Queries Run</span>
+              <span class="text-gray-900 dark:text-gray-100" x-text="diagnostics.queryCount"></span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-gray-600 dark:text-gray-400">Query Errors</span>
+              <span :class="diagnostics.queryErrors > 0 ? 'text-red-500' : 'text-green-500'" x-text="diagnostics.queryErrors"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Log -->
+        <div x-show="diagnostics.queryErrors > 0 || (window.beadsViewer?.ERROR_STATE?.errors?.length > 0)">
+          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Recent Errors</h3>
+          <div class="space-y-2 max-h-48 overflow-y-auto">
+            <template x-for="err in (window.beadsViewer?.ERROR_STATE?.errors || []).slice(-5)" :key="err.id">
+              <div class="p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs">
+                <div class="font-medium text-red-700 dark:text-red-300" x-text="err.title"></div>
+                <div class="text-red-600 dark:text-red-400 truncate" x-text="err.message"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Keyboard Shortcuts -->
+        <div>
+          <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Shortcuts</h3>
+          <div class="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">d</kbd> Toggle diagnostics</div>
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">j</kbd>/<kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">k</kbd> Navigate issues</div>
+            <div><kbd class="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Esc</kbd> Close panels</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Database source indicator -->
     <div class="fixed bottom-4 right-4 px-3 py-1 bg-gray-800/80 text-gray-200 text-xs rounded-full">
       <span x-text="'DB: ' + dbSource"></span>
