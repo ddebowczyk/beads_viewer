@@ -165,6 +165,7 @@ type Model struct {
 	isHistoryView         bool
 	showDetails           bool
 	showHelp              bool
+	helpScroll            int // Scroll offset for help overlay
 	showQuitConfirm       bool
 	ready                 bool
 	width                 int
@@ -1041,16 +1042,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = !m.showHelp
 			if m.showHelp {
 				m.focused = focusHelp
+				m.helpScroll = 0 // Reset scroll position when opening help
 			} else {
 				m.focused = focusList
 			}
 			return m, nil
 		}
 
-		// If help is showing, any key (except ?/F1) dismisses it
+		// If help is showing, handle navigation keys for scrolling
 		if m.focused == focusHelp {
-			m.showHelp = false
-			m.focused = focusList
+			m = m.handleHelpKeys(msg)
 			return m, nil
 		}
 
@@ -1895,6 +1896,41 @@ func (m Model) handleTimeTravelInputKeys(msg tea.KeyMsg) Model {
 	return m
 }
 
+// handleHelpKeys handles keyboard input when the help overlay is focused
+func (m Model) handleHelpKeys(msg tea.KeyMsg) Model {
+	switch msg.String() {
+	case "j", "down":
+		m.helpScroll++
+	case "k", "up":
+		if m.helpScroll > 0 {
+			m.helpScroll--
+		}
+	case "ctrl+d":
+		m.helpScroll += 10
+	case "ctrl+u":
+		m.helpScroll -= 10
+		if m.helpScroll < 0 {
+			m.helpScroll = 0
+		}
+	case "home", "g":
+		m.helpScroll = 0
+	case "G", "end":
+		// Will be clamped in render
+		m.helpScroll = 999
+	case "q", "esc", "?", "f1":
+		// Close help overlay
+		m.showHelp = false
+		m.helpScroll = 0
+		m.focused = focusList
+	default:
+		// Any other key dismisses help
+		m.showHelp = false
+		m.helpScroll = 0
+		m.focused = focusList
+	}
+	return m
+}
+
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
@@ -2146,7 +2182,7 @@ func (m Model) renderSplitView() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, listView, detailView)
 }
 
-func (m Model) renderHelpOverlay() string {
+func (m *Model) renderHelpOverlay() string {
 	t := m.theme
 
 	titleStyle := t.Renderer.NewStyle().
@@ -2285,11 +2321,70 @@ func (m Model) renderHelpOverlay() string {
 		sb.WriteString(keyStyle.Render(s.key) + descStyle.Render(s.desc) + "\n")
 	}
 
-	sb.WriteString("\n")
-	sb.WriteString(t.Renderer.NewStyle().Foreground(t.Secondary).Italic(true).Render("Press any key to close"))
+	// Build full content (without footer yet)
+	fullContent := sb.String()
+	lines := strings.Split(fullContent, "\n")
+	totalLines := len(lines)
+
+	// Calculate available height for content
+	// Reserve space for border (2), padding (2), and footer (2)
+	availableHeight := m.height - 8
+	if availableHeight < 5 {
+		availableHeight = 5
+	}
+
+	// Clamp scroll position
+	maxScroll := totalLines - availableHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if m.helpScroll > maxScroll {
+		m.helpScroll = maxScroll
+	}
+	if m.helpScroll < 0 {
+		m.helpScroll = 0
+	}
+
+	// Extract visible lines
+	startLine := m.helpScroll
+	endLine := startLine + availableHeight
+	if endLine > totalLines {
+		endLine = totalLines
+	}
+	visibleLines := lines[startLine:endLine]
+	visibleContent := strings.Join(visibleLines, "\n")
+
+	// Build scroll indicator
+	var scrollIndicator string
+	if totalLines > availableHeight {
+		// Show scroll position as a bar
+		scrollPercent := 0
+		if maxScroll > 0 {
+			scrollPercent = m.helpScroll * 100 / maxScroll
+		}
+		// Create a simple indicator: [===---] style
+		barWidth := 10
+		filledWidth := barWidth * scrollPercent / 100
+		if filledWidth > barWidth {
+			filledWidth = barWidth
+		}
+		scrollBar := strings.Repeat("─", filledWidth) + "●" + strings.Repeat("─", barWidth-filledWidth)
+		scrollIndicator = fmt.Sprintf(" [%s] %d/%d", scrollBar, m.helpScroll+1, maxScroll+1)
+	}
+
+	// Build footer with navigation hint
+	footerStyle := t.Renderer.NewStyle().Foreground(t.Secondary).Italic(true)
+	var footer string
+	if totalLines > availableHeight {
+		footer = footerStyle.Render(fmt.Sprintf("↑↓ scroll │ q close%s", scrollIndicator))
+	} else {
+		footer = footerStyle.Render("Press any key to close")
+	}
+
+	// Combine content and footer
+	helpContent := visibleContent + "\n\n" + footer
 
 	// Center the help content
-	helpContent := sb.String()
 	helpBox := t.Renderer.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(t.Primary).

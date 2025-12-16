@@ -838,3 +838,86 @@ func TestGraphIconsAndTruncation(t *testing.T) {
 		t.Fatalf("smartTruncateID should return empty when maxLen<=0")
 	}
 }
+
+func TestHelpOverlayScroll(t *testing.T) {
+	issues := []model.Issue{{ID: "1", Title: "One", Status: model.StatusOpen}}
+	m := NewModel(issues, nil, "")
+	m.width, m.height = 80, 20 // Small terminal to force scroll
+	m.showHelp = true
+	m.focused = focusHelp
+	m.helpScroll = 0
+
+	// Test scroll down
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	if m.helpScroll != 1 {
+		t.Fatalf("expected helpScroll=1 after j, got %d", m.helpScroll)
+	}
+
+	// Test scroll up
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	if m.helpScroll != 0 {
+		t.Fatalf("expected helpScroll=0 after k, got %d", m.helpScroll)
+	}
+
+	// Test scroll up at top (should stay at 0)
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	if m.helpScroll != 0 {
+		t.Fatalf("expected helpScroll=0 at top, got %d", m.helpScroll)
+	}
+
+	// Test page down
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyCtrlD})
+	if m.helpScroll != 10 {
+		t.Fatalf("expected helpScroll=10 after ctrl+d, got %d", m.helpScroll)
+	}
+
+	// Test page up
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyCtrlU})
+	if m.helpScroll != 0 {
+		t.Fatalf("expected helpScroll=0 after ctrl+u, got %d", m.helpScroll)
+	}
+
+	// Test home
+	m.helpScroll = 5
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
+	if m.helpScroll != 0 {
+		t.Fatalf("expected helpScroll=0 after g, got %d", m.helpScroll)
+	}
+
+	// Test end
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	if m.helpScroll < 10 {
+		t.Fatalf("expected helpScroll>10 after G, got %d", m.helpScroll)
+	}
+
+	// Test q closes help
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	if m.showHelp {
+		t.Fatalf("expected showHelp=false after q")
+	}
+	if m.helpScroll != 0 {
+		t.Fatalf("expected helpScroll=0 after closing, got %d", m.helpScroll)
+	}
+
+	// Test any other key closes help
+	m.showHelp = true
+	m.focused = focusHelp
+	m.helpScroll = 5
+	m = m.handleHelpKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if m.showHelp {
+		t.Fatalf("expected showHelp=false after x")
+	}
+
+	// Test render with scroll indicator (small terminal)
+	m.showHelp = true
+	m.focused = focusHelp
+	m.helpScroll = 0
+	out := m.renderHelpOverlay()
+	if !strings.Contains(out, "Keyboard Shortcuts") {
+		t.Fatalf("help overlay should render shortcuts")
+	}
+	// On small terminal, should show scroll indicator
+	if !strings.Contains(out, "scroll") && !strings.Contains(out, "↑↓") {
+		t.Fatalf("help overlay should show scroll hint on small terminal")
+	}
+}
