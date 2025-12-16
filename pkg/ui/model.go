@@ -1980,6 +1980,13 @@ func (m Model) renderLabelHealthDetail(lh analysis.LabelHealth) string {
 		return style.Render(filled + blank)
 	}
 
+	boxStyle := t.Renderer.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(t.Primary).
+		Padding(1, 2)
+
+	labelStyle := t.Renderer.NewStyle().Foreground(t.Secondary).Bold(true)
+	valStyle := t.Renderer.NewStyle().Foreground(t.Base.GetForeground())
 	flowList := func(title string, items []labelCount, arrow string) string {
 		if len(items) == 0 {
 			return ""
@@ -2003,14 +2010,6 @@ func (m Model) renderLabelHealthDetail(lh analysis.LabelHealth) string {
 		}
 		return b.String()
 	}
-
-	boxStyle := t.Renderer.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(t.Primary).
-		Padding(1, 2)
-
-	labelStyle := t.Renderer.NewStyle().Foreground(t.Secondary).Bold(true)
-	valStyle := t.Renderer.NewStyle().Foreground(t.Base.GetForeground())
 
 	var sb strings.Builder
 	sb.WriteString(t.Renderer.NewStyle().Foreground(t.Primary).Bold(true).MarginBottom(1).
@@ -3074,7 +3073,7 @@ func (m *Model) openInEditor() {
 		}
 	}
 	if beadsFile == "" {
-		m.statusMsg = "❌ No .beads directory or beads.jsonl found"
+		m.statusMsg = "❌ No beads file found in .beads directory"
 		m.statusIsError = true
 		return
 	}
