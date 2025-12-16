@@ -260,6 +260,47 @@ impl DiGraph {
         let scores = pagerank_default(self);
         serde_wasm_bindgen::to_value(&scores).unwrap_or(JsValue::NULL)
     }
+
+    /// Compute eigenvector centrality using power iteration.
+    /// Returns array of scores in node index order, normalized to unit length.
+    #[wasm_bindgen(js_name = eigenvector)]
+    pub fn eigenvector(&self, iterations: u32) -> JsValue {
+        use crate::algorithms::eigenvector::{eigenvector, EigenvectorConfig};
+        let config = EigenvectorConfig {
+            iterations,
+            tolerance: 1e-6,
+        };
+        let scores = eigenvector(self, &config);
+        serde_wasm_bindgen::to_value(&scores).unwrap_or(JsValue::NULL)
+    }
+
+    /// Compute eigenvector centrality with default parameters (50 iterations).
+    #[wasm_bindgen(js_name = eigenvectorDefault)]
+    pub fn eigenvector_default(&self) -> JsValue {
+        use crate::algorithms::eigenvector::eigenvector_default;
+        let scores = eigenvector_default(self);
+        serde_wasm_bindgen::to_value(&scores).unwrap_or(JsValue::NULL)
+    }
+
+    /// Compute exact betweenness centrality using Brandes' algorithm.
+    /// Returns array of scores in node index order.
+    /// Complexity: O(V*E) - use betweenness_approx for large graphs.
+    #[wasm_bindgen(js_name = betweenness)]
+    pub fn betweenness(&self) -> JsValue {
+        use crate::algorithms::betweenness::betweenness;
+        let scores = betweenness(self);
+        serde_wasm_bindgen::to_value(&scores).unwrap_or(JsValue::NULL)
+    }
+
+    /// Compute approximate betweenness centrality using sampling.
+    /// Returns array of scores in node index order.
+    /// Error: O(1/sqrt(k)) - with k=100, ~10% error in ranking.
+    #[wasm_bindgen(js_name = betweennessApprox)]
+    pub fn betweenness_approx(&self, sample_size: usize) -> JsValue {
+        use crate::algorithms::betweenness::betweenness_approx;
+        let scores = betweenness_approx(self, sample_size, None);
+        serde_wasm_bindgen::to_value(&scores).unwrap_or(JsValue::NULL)
+    }
 }
 
 // Internal methods (not exposed to WASM)
