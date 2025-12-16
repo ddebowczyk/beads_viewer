@@ -41,6 +41,16 @@ func main() {
 	robotNext := flag.Bool("robot-next", false, "Output only the top pick recommendation as JSON (minimal triage)")
 	robotDiff := flag.Bool("robot-diff", false, "Output diff as JSON (use with --diff-since)")
 	robotRecipes := flag.Bool("robot-recipes", false, "Output available recipes as JSON for AI agents")
+	// Robot output filters (bv-84)
+	robotMinConf := flag.Float64("robot-min-confidence", 0.0, "Filter robot outputs by minimum confidence (0.0-1.0)")
+	robotMaxResults := flag.Int("robot-max-results", 0, "Limit robot output count (0 = use defaults)")
+	robotByLabel := flag.String("robot-by-label", "", "Filter robot outputs by label (exact match)")
+	robotByAssignee := flag.String("robot-by-assignee", "", "Filter robot outputs by assignee (exact match)")
+	// Prevent unused warnings until filters are fully wired (bv-84).
+	_ = robotMinConf
+	_ = robotMaxResults
+	_ = robotByLabel
+	_ = robotByAssignee
 	recipeName := flag.String("recipe", "", "Apply named recipe (e.g., triage, actionable, high-impact)")
 	recipeShort := flag.String("r", "", "Shorthand for --recipe")
 	diffSince := flag.String("diff-since", "", "Show changes since historical point (commit SHA, branch, tag, or date)")
@@ -617,8 +627,8 @@ func main() {
 			AnalysisConfig analysis.AnalysisConfig `json:"analysis_config"`
 			Status         analysis.MetricStatus   `json:"status"`
 			analysis.Insights
-			FullStats   interface{}             `json:"full_stats"`
-			TopWhatIfs  []analysis.WhatIfEntry  `json:"top_what_ifs,omitempty"` // Issues with highest downstream impact (bv-83)
+			FullStats  interface{}            `json:"full_stats"`
+			TopWhatIfs []analysis.WhatIfEntry `json:"top_what_ifs,omitempty"` // Issues with highest downstream impact (bv-83)
 		}{
 			GeneratedAt:    time.Now().UTC().Format(time.RFC3339),
 			DataHash:       dataHash,
@@ -685,6 +695,57 @@ func main() {
 		// Use enhanced recommendations with what-if deltas and top reasons (bv-83)
 		recommendations := analyzer.GenerateEnhancedRecommendations()
 
+		// Apply robot filters (bv-84)
+		filtered := make([]analysis.EnhancedPriorityRecommendation, 0, len(recommendations))
+		issueMap := make(map[string]model.Issue, len(issues))
+		for _, iss := range issues {
+			issueMap[iss.ID] = iss
+		}
+		for _, rec := range recommendations {
+			// Filter by minimum confidence
+			if *robotMinConf > 0 && rec.Confidence < *robotMinConf {
+				continue
+			}
+			// Filter by label
+			if *robotByLabel != "" {
+				if iss, ok := issueMap[rec.IssueID]; ok {
+					hasLabel := false
+					for _, lbl := range iss.Labels {
+						if lbl == *robotByLabel {
+							hasLabel = true
+							break
+						}
+					}
+					if !hasLabel {
+						continue
+					}
+				} else {
+					continue
+				}
+			}
+			// Filter by assignee
+			if *robotByAssignee != "" {
+				if iss, ok := issueMap[rec.IssueID]; ok {
+					if iss.Assignee != *robotByAssignee {
+						continue
+					}
+				} else {
+					continue
+				}
+			}
+			filtered = append(filtered, rec)
+		}
+		recommendations = filtered
+
+		// Apply max results limit
+		maxResults := 10 // Default cap
+		if *robotMaxResults > 0 {
+			maxResults = *robotMaxResults
+		}
+		if len(recommendations) > maxResults {
+			recommendations = recommendations[:maxResults]
+		}
+
 		// Count high confidence recommendations
 		highConfidence := 0
 		for _, rec := range recommendations {
@@ -701,11 +762,18 @@ func main() {
 			Status            analysis.MetricStatus                     `json:"status"`
 			Recommendations   []analysis.EnhancedPriorityRecommendation `json:"recommendations"`
 			FieldDescriptions map[string]string                         `json:"field_descriptions"`
-			Summary           struct {
+			Filters           struct {
+				MinConfidence float64 `json:"min_confidence,omitempty"`
+				MaxResults    int     `json:"max_results"`
+				ByLabel       string  `json:"by_label,omitempty"`
+				ByAssignee    string  `json:"by_assignee,omitempty"`
+			} `json:"filters"`
+			Summary struct {
 				TotalIssues     int `json:"total_issues"`
 				Recommendations int `json:"recommendations"`
 				HighConfidence  int `json:"high_confidence"`
 			} `json:"summary"`
+			Usage []string `json:"usage_hints"` // bv-84: Agent-friendly hints
 		}{
 			GeneratedAt:       time.Now().UTC().Format(time.RFC3339),
 			DataHash:          dataHash,
@@ -713,7 +781,19 @@ func main() {
 			Status:            status,
 			Recommendations:   recommendations,
 			FieldDescriptions: analysis.DefaultFieldDescriptions(),
+			Usage: []string{
+				"jq '.recommendations[] | select(.confidence > 0.7)' - Filter high confidence",
+				"jq '.recommendations[0].explanation.what_if' - Get top item's impact",
+				"jq '.recommendations | map({id: .issue_id, score: .impact_score})' - Extract IDs and scores",
+				"--robot-min-confidence 0.6 - Pre-filter by confidence",
+				"--robot-max-results 5 - Limit to top N results",
+				"--robot-by-label bug - Filter by specific label",
+			},
 		}
+		output.Filters.MinConfidence = *robotMinConf
+		output.Filters.MaxResults = maxResults
+		output.Filters.ByLabel = *robotByLabel
+		output.Filters.ByAssignee = *robotByAssignee
 		output.Summary.TotalIssues = len(issues)
 		output.Summary.Recommendations = len(recommendations)
 		output.Summary.HighConfidence = highConfidence
