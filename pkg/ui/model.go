@@ -89,6 +89,9 @@ func WaitForPhase2Cmd(stats *analysis.GraphStats) tea.Cmd {
 // FileChangedMsg is sent when the beads file changes on disk
 type FileChangedMsg struct{}
 
+// ViewportUpdateMsg is sent after a throttle delay to trigger a pending viewport update
+type ViewportUpdateMsg struct{}
+
 // WatchFileCmd returns a command that waits for file changes and sends FileChangedMsg
 func WatchFileCmd(w *watcher.Watcher) tea.Cmd {
 	return func() tea.Msg {
@@ -105,6 +108,14 @@ func CheckUpdateCmd() tea.Cmd {
 			return UpdateMsg{TagName: tag, URL: url}
 		}
 		return nil
+	}
+}
+
+// DelayedViewportUpdateCmd returns a command that sends ViewportUpdateMsg after a delay
+func DelayedViewportUpdateCmd(delay time.Duration) tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(delay)
+		return ViewportUpdateMsg{}
 	}
 }
 
@@ -302,6 +313,10 @@ type Model struct {
 	selectedSprint *model.Sprint
 	isSprintView   bool
 	sprintViewText string
+
+	// Performance: viewport update throttling (bv-xxx)
+	lastViewportUpdate   time.Time
+	viewportUpdateNeeded bool
 }
 
 // labelCount is a simple label->count pair for display
@@ -1044,6 +1059,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, WaitForPhase2Cmd(m.analysis))
 		return m, tea.Batch(cmds...)
 
+	case ViewportUpdateMsg:
+		// Delayed viewport update triggered by throttling
+		if m.viewportUpdateNeeded {
+			m.updateViewportContent()
+			m.viewportUpdateNeeded = false
+			m.lastViewportUpdate = time.Now()
+		}
+
 	case tea.KeyMsg:
 		// Clear status message on any keypress
 		m.statusMsg = ""
@@ -1717,9 +1740,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusList:
 				if m.list.Index() > 0 {
 					m.list.Select(m.list.Index() - 1)
-					// Sync detail panel in split view mode
+					// Sync detail panel in split view mode (with throttling)
 					if m.isSplitView {
-						m.updateViewportContent()
+						if cmd := m.requestViewportUpdate(); cmd != nil {
+							cmds = append(cmds, cmd)
+						}
 					}
 				}
 			case focusDetail:
@@ -1742,9 +1767,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusList:
 				if m.list.Index() < len(m.list.Items())-1 {
 					m.list.Select(m.list.Index() + 1)
-					// Sync detail panel in split view mode
+					// Sync detail panel in split view mode (with throttling)
 					if m.isSplitView {
-						m.updateViewportContent()
+						if cmd := m.requestViewportUpdate(); cmd != nil {
+							cmds = append(cmds, cmd)
+						}
 					}
 				}
 			case focusDetail:
@@ -1831,9 +1858,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update viewport if list selection changed in split view
+	// Update viewport if list selection changed in split view (with throttling)
 	if m.isSplitView && m.focused == focusList {
-		m.updateViewportContent()
+		if cmd := m.requestViewportUpdate(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -3853,6 +3882,27 @@ func (m *Model) applyRecipe(r *recipe.Recipe) {
 		m.list.Select(0)
 	}
 	m.updateViewportContent()
+}
+
+// requestViewportUpdate schedules a viewport update with throttling to prevent lag
+// during rapid navigation. Updates immediately if enough time has passed (100ms),
+// otherwise schedules a delayed update.
+func (m *Model) requestViewportUpdate() tea.Cmd {
+	const throttleDelay = 100 * time.Millisecond
+
+	elapsed := time.Since(m.lastViewportUpdate)
+
+	if elapsed >= throttleDelay {
+		// Enough time passed - update immediately
+		m.updateViewportContent()
+		m.lastViewportUpdate = time.Now()
+		m.viewportUpdateNeeded = false
+		return nil
+	}
+
+	// Too soon - schedule delayed update
+	m.viewportUpdateNeeded = true
+	return DelayedViewportUpdateCmd(throttleDelay - elapsed)
 }
 
 func (m *Model) updateViewportContent() {
