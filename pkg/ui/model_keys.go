@@ -335,7 +335,11 @@ func (m Model) handleInsightsKeys(msg tea.KeyMsg) Model {
 func (m Model) handleListKeys(msg tea.KeyMsg) Model {
 	switch msg.String() {
 	case "enter":
-		if !m.isSplitView {
+		if m.isSplitView {
+			// In split view, update the detail pane for the current selection
+			m.updateViewportContent()
+		} else {
+			// In non-split view, open detail view
 			m.showDetails = true
 			m.focused = focusDetail
 			m.updateViewportContent()
