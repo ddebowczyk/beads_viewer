@@ -25,15 +25,15 @@ func TestGenerateTopReasons_Empty(t *testing.T) {
 func TestGenerateTopReasons_ThreeMax(t *testing.T) {
 	score := ImpactScore{
 		Breakdown: ScoreBreakdown{
-			PageRank:      0.3,
-			PageRankNorm:  0.8,
-			Betweenness:   0.25,
-			BetweennessNorm: 0.7,
-			BlockerRatio:  0.2,
-			BlockerRatioNorm: 0.5,
-			Staleness:     0.15,
-			StalenessNorm: 0.4,
-			PriorityBoost: 0.1,
+			PageRank:          0.3,
+			PageRankNorm:      0.8,
+			Betweenness:       0.25,
+			BetweennessNorm:   0.7,
+			BlockerRatio:      0.2,
+			BlockerRatioNorm:  0.5,
+			Staleness:         0.15,
+			StalenessNorm:     0.4,
+			PriorityBoost:     0.1,
 			PriorityBoostNorm: 0.3,
 		},
 	}
@@ -212,7 +212,7 @@ func TestGenerateEnhancedRecommendations_Empty(t *testing.T) {
 	analyzer := NewCachedAnalyzer([]model.Issue{}, nil)
 	recs := analyzer.GenerateEnhancedRecommendations()
 
-	if recs != nil && len(recs) > 0 {
+	if len(recs) > 0 {
 		t.Error("expected empty recommendations for empty analyzer")
 	}
 }

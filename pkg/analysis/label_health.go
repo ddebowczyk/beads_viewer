@@ -61,12 +61,12 @@ type HistoricalVelocity struct {
 
 // WeeklySnapshot captures closure data for a single week
 type WeeklySnapshot struct {
-	WeekStart  time.Time `json:"week_start"`  // Start of the week (Monday)
-	WeekEnd    time.Time `json:"week_end"`    // End of the week (Sunday)
-	Closed     int       `json:"closed"`      // Issues closed this week
-	WeeksAgo   int       `json:"weeks_ago"`   // 0 = current week, 1 = last week, etc.
+	WeekStart  time.Time `json:"week_start"` // Start of the week (Monday)
+	WeekEnd    time.Time `json:"week_end"`   // End of the week (Sunday)
+	Closed     int       `json:"closed"`     // Issues closed this week
+	WeeksAgo   int       `json:"weeks_ago"`  // 0 = current week, 1 = last week, etc.
 	IssueIDs   []string  `json:"issue_ids,omitempty"`
-	Cumulative int       `json:"cumulative"`  // Running total up to this week
+	Cumulative int       `json:"cumulative"` // Running total up to this week
 }
 
 // FreshnessMetrics tracks how recently issues in a label have been updated
@@ -134,26 +134,26 @@ type CrossLabelFlow struct {
 
 // BlockageCascadeResult shows the transitive downstream impact of blocked issues
 type BlockageCascadeResult struct {
-	SourceLabel     string                   `json:"source_label"`     // The label with blocked issues
-	BlockedCount    int                      `json:"blocked_count"`    // Number of blocked issues in source
-	CascadeLevels   []CascadeLevel           `json:"cascade_levels"`   // Downstream impact by depth
-	TotalImpact     int                      `json:"total_impact"`     // Total downstream issues affected
-	AffectedLabels  []string                 `json:"affected_labels"`  // All labels in the cascade
-	Recommendations []UnblockRecommendation  `json:"recommendations"`  // What to unblock first
+	SourceLabel     string                  `json:"source_label"`    // The label with blocked issues
+	BlockedCount    int                     `json:"blocked_count"`   // Number of blocked issues in source
+	CascadeLevels   []CascadeLevel          `json:"cascade_levels"`  // Downstream impact by depth
+	TotalImpact     int                     `json:"total_impact"`    // Total downstream issues affected
+	AffectedLabels  []string                `json:"affected_labels"` // All labels in the cascade
+	Recommendations []UnblockRecommendation `json:"recommendations"` // What to unblock first
 }
 
 // CascadeLevel represents one depth level in the cascade tree
 type CascadeLevel struct {
-	Level         int                  `json:"level"`          // Depth (1 = direct, 2 = indirect, etc.)
-	Labels        []LabelCascadeEntry  `json:"labels"`         // Labels affected at this level
-	TotalAffected int                  `json:"total_affected"` // Total issues at this level
+	Level         int                 `json:"level"`          // Depth (1 = direct, 2 = indirect, etc.)
+	Labels        []LabelCascadeEntry `json:"labels"`         // Labels affected at this level
+	TotalAffected int                 `json:"total_affected"` // Total issues at this level
 }
 
 // LabelCascadeEntry shows a label's impact in the cascade
 type LabelCascadeEntry struct {
-	Label        string `json:"label"`
-	WaitingCount int    `json:"waiting_count"` // Issues waiting due to cascade
-	FromLabels   []string `json:"from_labels"` // Which labels are blocking this one
+	Label        string   `json:"label"`
+	WaitingCount int      `json:"waiting_count"` // Issues waiting due to cascade
+	FromLabels   []string `json:"from_labels"`   // Which labels are blocking this one
 }
 
 // UnblockRecommendation suggests which issue to unblock for maximum impact
@@ -169,10 +169,10 @@ type UnblockRecommendation struct {
 // BlockageCascadeAnalysis holds all cascade results for a project
 type BlockageCascadeAnalysis struct {
 	GeneratedAt   time.Time               `json:"generated_at"`
-	TotalBlocked  int                     `json:"total_blocked"`   // Total blocked issues
-	Cascades      []BlockageCascadeResult `json:"cascades"`        // Per-source-label cascades
-	TopUnblocks   []UnblockRecommendation `json:"top_unblocks"`    // Global top recommendations
-	CriticalChain []string                `json:"critical_chain"`  // Longest cascade chain (labels)
+	TotalBlocked  int                     `json:"total_blocked"`  // Total blocked issues
+	Cascades      []BlockageCascadeResult `json:"cascades"`       // Per-source-label cascades
+	TopUnblocks   []UnblockRecommendation `json:"top_unblocks"`   // Global top recommendations
+	CriticalChain []string                `json:"critical_chain"` // Longest cascade chain (labels)
 }
 
 // LabelPath represents a sequence of labels in a dependency chain
@@ -1297,17 +1297,17 @@ func (c *BlockageCascadeResult) FormatCascadeTree() string {
 // It includes core issues (those with the label) plus their direct dependencies
 // (even if outside the label) to enable meaningful graph analysis within label context.
 type LabelSubgraph struct {
-	Label            string              `json:"label"`             // The filter label
-	CoreIssues       []string            `json:"core_issues"`       // Issue IDs with this label (sorted)
-	DependencyIssues []string            `json:"dependency_issues"` // Direct dependencies outside label
-	AllIssues        []string            `json:"all_issues"`        // CoreIssues + DependencyIssues
-	IssueCount       int                 `json:"issue_count"`       // len(AllIssues)
-	CoreCount        int                 `json:"core_count"`        // len(CoreIssues)
-	EdgeCount        int                 `json:"edge_count"`        // Total dependency edges in subgraph
-	Adjacency        map[string][]string `json:"adjacency"`         // from -> [to] (blocking relationships)
-	InDegree         map[string]int      `json:"in_degree"`         // blocked_by count per issue
-	OutDegree        map[string]int      `json:"out_degree"`        // blocks count per issue
-	IssueMap         map[string]model.Issue `json:"-"`              // Quick lookup for issues in subgraph
+	Label            string                 `json:"label"`             // The filter label
+	CoreIssues       []string               `json:"core_issues"`       // Issue IDs with this label (sorted)
+	DependencyIssues []string               `json:"dependency_issues"` // Direct dependencies outside label
+	AllIssues        []string               `json:"all_issues"`        // CoreIssues + DependencyIssues
+	IssueCount       int                    `json:"issue_count"`       // len(AllIssues)
+	CoreCount        int                    `json:"core_count"`        // len(CoreIssues)
+	EdgeCount        int                    `json:"edge_count"`        // Total dependency edges in subgraph
+	Adjacency        map[string][]string    `json:"adjacency"`         // from -> [to] (blocking relationships)
+	InDegree         map[string]int         `json:"in_degree"`         // blocked_by count per issue
+	OutDegree        map[string]int         `json:"out_degree"`        // blocks count per issue
+	IssueMap         map[string]model.Issue `json:"-"`                 // Quick lookup for issues in subgraph
 }
 
 // ComputeLabelSubgraph extracts a subgraph for issues with a given label.
@@ -1491,24 +1491,24 @@ func (sg *LabelSubgraph) IsEmpty() bool {
 
 // LabelPageRankResult contains PageRank scores for a label subgraph
 type LabelPageRankResult struct {
-	Label      string             `json:"label"`        // The label analyzed
-	Scores     map[string]float64 `json:"scores"`       // Issue ID -> PageRank score
-	Normalized map[string]float64 `json:"normalized"`   // Scores normalized to 0-1 range
-	TopIssues  []RankedIssue      `json:"top_issues"`   // Top issues by PageRank, sorted
-	CoreOnly   map[string]float64 `json:"core_only"`    // Scores for core issues only (with label)
-	IssueCount int                `json:"issue_count"`  // Total issues in subgraph
-	CoreCount  int                `json:"core_count"`   // Issues with the label
-	MaxScore   float64            `json:"max_score"`    // Highest score in subgraph
-	MinScore   float64            `json:"min_score"`    // Lowest score in subgraph
+	Label      string             `json:"label"`       // The label analyzed
+	Scores     map[string]float64 `json:"scores"`      // Issue ID -> PageRank score
+	Normalized map[string]float64 `json:"normalized"`  // Scores normalized to 0-1 range
+	TopIssues  []RankedIssue      `json:"top_issues"`  // Top issues by PageRank, sorted
+	CoreOnly   map[string]float64 `json:"core_only"`   // Scores for core issues only (with label)
+	IssueCount int                `json:"issue_count"` // Total issues in subgraph
+	CoreCount  int                `json:"core_count"`  // Issues with the label
+	MaxScore   float64            `json:"max_score"`   // Highest score in subgraph
+	MinScore   float64            `json:"min_score"`   // Lowest score in subgraph
 }
 
 // RankedIssue represents an issue with its ranking information
 type RankedIssue struct {
-	ID       string  `json:"id"`
-	Score    float64 `json:"score"`
-	Rank     int     `json:"rank"`
-	IsCore   bool    `json:"is_core"`   // True if issue has the target label
-	Title    string  `json:"title,omitempty"`
+	ID     string  `json:"id"`
+	Score  float64 `json:"score"`
+	Rank   int     `json:"rank"`
+	IsCore bool    `json:"is_core"` // True if issue has the target label
+	Title  string  `json:"title,omitempty"`
 }
 
 // ComputeLabelPageRank runs PageRank on a label subgraph.
@@ -1677,14 +1677,14 @@ func (r *LabelPageRankResult) GetNormalizedScore(id string) float64 {
 
 // LabelCriticalPathResult contains the critical path for a label subgraph
 type LabelCriticalPathResult struct {
-	Label       string   `json:"label"`        // The label analyzed
-	Path        []string `json:"path"`         // Issue IDs in critical path order (root -> leaf)
-	PathLength  int      `json:"path_length"`  // Number of issues in the path
-	PathTitles  []string `json:"path_titles"`  // Titles corresponding to path IDs
-	AllHeights  map[string]int `json:"all_heights"` // Heights for all issues in subgraph
-	MaxHeight   int      `json:"max_height"`   // Maximum height in the subgraph
-	IssueCount  int      `json:"issue_count"`  // Total issues in subgraph
-	HasCycle    bool     `json:"has_cycle"`    // True if cycle detected (path unreliable)
+	Label      string         `json:"label"`       // The label analyzed
+	Path       []string       `json:"path"`        // Issue IDs in critical path order (root -> leaf)
+	PathLength int            `json:"path_length"` // Number of issues in the path
+	PathTitles []string       `json:"path_titles"` // Titles corresponding to path IDs
+	AllHeights map[string]int `json:"all_heights"` // Heights for all issues in subgraph
+	MaxHeight  int            `json:"max_height"`  // Maximum height in the subgraph
+	IssueCount int            `json:"issue_count"` // Total issues in subgraph
+	HasCycle   bool           `json:"has_cycle"`   // True if cycle detected (path unreliable)
 }
 
 // ComputeLabelCriticalPath finds the longest dependency chain in a label subgraph.
@@ -1855,26 +1855,26 @@ type LabelAttentionScore struct {
 	Rank            int     `json:"rank"`             // 1-based rank
 
 	// Component factors
-	PageRankSum    float64 `json:"pagerank_sum"`    // Sum of PageRank scores
+	PageRankSum     float64 `json:"pagerank_sum"`     // Sum of PageRank scores
 	StalenessFactor float64 `json:"staleness_factor"` // Higher = more stale
-	BlockImpact    float64 `json:"block_impact"`    // Issues blocked by this label
-	VelocityFactor float64 `json:"velocity_factor"` // Higher = more velocity (good)
+	BlockImpact     float64 `json:"block_impact"`     // Issues blocked by this label
+	VelocityFactor  float64 `json:"velocity_factor"`  // Higher = more velocity (good)
 
 	// Context
-	OpenCount   int `json:"open_count"`
+	OpenCount    int `json:"open_count"`
 	BlockedCount int `json:"blocked_count"`
-	StaleCount  int `json:"stale_count"`
+	StaleCount   int `json:"stale_count"`
 }
 
 // LabelAttentionResult contains attention scores for all labels
 type LabelAttentionResult struct {
-	GeneratedAt   time.Time             `json:"generated_at"`
-	Labels        []LabelAttentionScore `json:"labels"`         // Sorted by attention (descending)
-	TopAttention  []string              `json:"top_attention"`  // Labels needing most attention
-	LowAttention  []string              `json:"low_attention"`  // Labels with least attention needed
-	MaxScore      float64               `json:"max_score"`
-	MinScore      float64               `json:"min_score"`
-	TotalLabels   int                   `json:"total_labels"`
+	GeneratedAt  time.Time             `json:"generated_at"`
+	Labels       []LabelAttentionScore `json:"labels"`        // Sorted by attention (descending)
+	TopAttention []string              `json:"top_attention"` // Labels needing most attention
+	LowAttention []string              `json:"low_attention"` // Labels with least attention needed
+	MaxScore     float64               `json:"max_score"`
+	MinScore     float64               `json:"min_score"`
+	TotalLabels  int                   `json:"total_labels"`
 }
 
 // ComputeLabelAttentionScores calculates attention needed for all labels.
@@ -2072,8 +2072,6 @@ func (r *LabelAttentionResult) GetLabelAttention(label string) *LabelAttentionSc
 // This enables trend analysis, anomaly detection, and forecasting.
 // Uses ClosedAt timestamps from issues to bucket closures into weeks.
 func ComputeHistoricalVelocity(issues []model.Issue, label string, numWeeks int, now time.Time) HistoricalVelocity {
-	const day = 24 * time.Hour
-
 	result := HistoricalVelocity{
 		Label:          label,
 		WeeklyVelocity: make([]WeeklySnapshot, numWeeks),
@@ -2277,4 +2275,3 @@ func (hv *HistoricalVelocity) GetWeeklyAverage() float64 {
 	}
 	return float64(total) / float64(hv.WeeksAnalyzed)
 }
-

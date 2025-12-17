@@ -512,9 +512,6 @@ func (a *Analyzer) generateCoverageSet(limit int) *CoverageSetResult {
 	}
 
 	// Track uncovered edges and degrees
-	type nodeStats struct {
-		deg int
-	}
 	uncovered := make(map[int]edge, len(edges))
 	for i, e := range edges {
 		uncovered[i] = e
@@ -686,11 +683,8 @@ func (a *Analyzer) generateKPaths(k int, pathLengthCap int) *KPathsResult {
 	}
 
 	// If topoOrder doesn't include all nodes, there's a cycle - handle gracefully
-	hasCycle := len(topoOrder) < n
-	if hasCycle {
-		// Fall back to partial ordering for nodes we could process
-		// Nodes not in topoOrder are in cycles - we'll skip them for path computation
-	}
+	// If topoOrder doesn't include all nodes, the graph has cycles; we still
+	// proceed with a partial ordering for path computation.
 
 	// DP for longest path distances and predecessor tracking
 	dist := make([]int, n) // dist[i] = length of longest path ending at i

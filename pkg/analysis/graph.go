@@ -104,10 +104,10 @@ type MetricStatus struct {
 
 // statusEntry records computation state for a single metric.
 type statusEntry struct {
-	State  string        `json:"state"`            // computed|approx|timeout|skipped
-	Reason string        `json:"reason,omitempty"` // explanation when skipped/timeout/approx
-	Sample int           `json:"sample,omitempty"` // sample size when approximate
-	MS     time.Duration `json:"ms,omitempty"`     // elapsed time
+	State   string        `json:"state"`            // computed|approx|timeout|skipped
+	Reason  string        `json:"reason,omitempty"` // explanation when skipped/timeout/approx
+	Sample  int           `json:"sample,omitempty"` // sample size when approximate
+	Elapsed time.Duration `json:"ms,omitempty"`     // elapsed time
 }
 
 // IsPhase2Ready returns true if Phase 2 metrics have been computed.
@@ -678,9 +678,9 @@ func (a *Analyzer) computePhase2WithProfile(stats *GraphStats, config AnalysisCo
 	localHubs := make(map[string]float64)
 	localAuthorities := make(map[string]float64)
 	localCriticalPath := make(map[string]float64)
-	localCore := make(map[string]int)
-	localArticulation := make(map[string]bool)
-	localSlack := make(map[string]float64)
+	var localCore map[string]int
+	var localArticulation map[string]bool
+	var localSlack map[string]float64
 	var localCycles [][]string
 
 	betweennessIsApprox := false
@@ -890,20 +890,20 @@ func (a *Analyzer) computePhase2WithProfile(stats *GraphStats, config AnalysisCo
 
 	// record status snapshot
 	stats.status = MetricStatus{
-		PageRank: statusEntry{State: stateFromTiming(config.ComputePageRank, profile.PageRankTO), MS: profile.PageRank},
+		PageRank: statusEntry{State: stateFromTiming(config.ComputePageRank, profile.PageRankTO), Elapsed: profile.PageRank},
 		Betweenness: statusEntry{
-			State:  stateFromTiming(config.ComputeBetweenness, profile.BetweennessTO),
-			Reason: betweennessReason(config, betweennessIsApprox),
-			Sample: config.BetweennessSampleSize,
-			MS:     profile.Betweenness,
+			State:   stateFromTiming(config.ComputeBetweenness, profile.BetweennessTO),
+			Reason:  betweennessReason(config, betweennessIsApprox),
+			Sample:  config.BetweennessSampleSize,
+			Elapsed: profile.Betweenness,
 		},
-		Eigenvector:  statusEntry{State: stateFromTiming(config.ComputeEigenvector, false), MS: profile.Eigenvector},
-		HITS:         statusEntry{State: stateFromTiming(config.ComputeHITS, profile.HITSTO), Reason: config.HITSSkipReason, MS: profile.HITS},
-		Critical:     statusEntry{State: stateFromTiming(config.ComputeCriticalPath, false), MS: profile.CriticalPath},
-		Cycles:       statusEntry{State: stateFromTiming(config.ComputeCycles, profile.CyclesTO), Reason: cycleReason, MS: profile.Cycles},
-		KCore:        statusEntry{State: "computed", MS: profile.KCore},        // bv-85: always computed (fast)
-		Articulation: statusEntry{State: "computed", MS: profile.Articulation}, // bv-85: computed with k-core
-		Slack:        statusEntry{State: "computed", MS: profile.Slack},        // bv-85: always computed (fast)
+		Eigenvector:  statusEntry{State: stateFromTiming(config.ComputeEigenvector, false), Elapsed: profile.Eigenvector},
+		HITS:         statusEntry{State: stateFromTiming(config.ComputeHITS, profile.HITSTO), Reason: config.HITSSkipReason, Elapsed: profile.HITS},
+		Critical:     statusEntry{State: stateFromTiming(config.ComputeCriticalPath, false), Elapsed: profile.CriticalPath},
+		Cycles:       statusEntry{State: stateFromTiming(config.ComputeCycles, profile.CyclesTO), Reason: cycleReason, Elapsed: profile.Cycles},
+		KCore:        statusEntry{State: "computed", Elapsed: profile.KCore},        // bv-85: always computed (fast)
+		Articulation: statusEntry{State: "computed", Elapsed: profile.Articulation}, // bv-85: computed with k-core
+		Slack:        statusEntry{State: "computed", Elapsed: profile.Slack},        // bv-85: always computed (fast)
 	}
 	stats.mu.Unlock()
 	// record status outside lock to avoid holding while computePhase2WithProfile might be extended

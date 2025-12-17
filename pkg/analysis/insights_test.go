@@ -46,17 +46,17 @@ func TestGenerateInsights_EmptyStats(t *testing.T) {
 
 func TestGenerateInsights_WithData(t *testing.T) {
 	stats := NewGraphStatsForTest(
-		map[string]float64{"A": 0.3, "B": 0.5, "C": 0.2},          // pageRank
-		map[string]float64{"A": 0.8, "B": 0.3, "C": 0.5},          // betweenness
-		map[string]float64{"A": 0.4, "B": 0.6, "C": 0.2},          // eigenvector
-		map[string]float64{"A": 1.0, "B": 2.0, "C": 0.5},          // hubs
-		map[string]float64{"A": 0.7, "B": 0.9, "C": 0.3},          // authorities
-		map[string]float64{"A": 3.0, "B": 1.0, "C": 5.0},          // criticalPathScore
-		nil,                                                       // outDegree
-		nil,                                                       // inDegree
-		[][]string{{"X", "Y", "Z"}},                               // cycles
-		0.42,                                                      // density
-		nil,                                                       // topologicalOrder
+		map[string]float64{"A": 0.3, "B": 0.5, "C": 0.2}, // pageRank
+		map[string]float64{"A": 0.8, "B": 0.3, "C": 0.5}, // betweenness
+		map[string]float64{"A": 0.4, "B": 0.6, "C": 0.2}, // eigenvector
+		map[string]float64{"A": 1.0, "B": 2.0, "C": 0.5}, // hubs
+		map[string]float64{"A": 0.7, "B": 0.9, "C": 0.3}, // authorities
+		map[string]float64{"A": 3.0, "B": 1.0, "C": 5.0}, // criticalPathScore
+		nil,                         // outDegree
+		nil,                         // inDegree
+		[][]string{{"X", "Y", "Z"}}, // cycles
+		0.42,                        // density
+		nil,                         // topologicalOrder
 	)
 
 	insights := stats.GenerateInsights(2) // Limit to top 2
@@ -127,12 +127,12 @@ func TestGenerateInsights_WithData(t *testing.T) {
 
 func TestGenerateInsights_ZeroLimit(t *testing.T) {
 	stats := NewGraphStatsForTest(
-		map[string]float64{"A": 0.3, "B": 0.5},    // pageRank
-		map[string]float64{"A": 0.8, "B": 0.3},    // betweenness
-		map[string]float64{"A": 0.4, "B": 0.6},    // eigenvector
-		map[string]float64{"A": 1.0, "B": 2.0},    // hubs
-		map[string]float64{"A": 0.7, "B": 0.9},    // authorities
-		map[string]float64{"A": 3.0, "B": 1.0},    // criticalPathScore
+		map[string]float64{"A": 0.3, "B": 0.5}, // pageRank
+		map[string]float64{"A": 0.8, "B": 0.3}, // betweenness
+		map[string]float64{"A": 0.4, "B": 0.6}, // eigenvector
+		map[string]float64{"A": 1.0, "B": 2.0}, // hubs
+		map[string]float64{"A": 0.7, "B": 0.9}, // authorities
+		map[string]float64{"A": 3.0, "B": 1.0}, // criticalPathScore
 		nil, nil, nil, 0, nil,
 	)
 
@@ -146,12 +146,12 @@ func TestGenerateInsights_ZeroLimit(t *testing.T) {
 
 func TestGenerateInsights_NegativeLimit(t *testing.T) {
 	stats := NewGraphStatsForTest(
-		map[string]float64{"A": 0.3, "B": 0.5},    // pageRank
-		map[string]float64{"A": 0.8, "B": 0.3},    // betweenness
-		map[string]float64{"A": 0.4, "B": 0.6},    // eigenvector
-		map[string]float64{"A": 1.0, "B": 2.0},    // hubs
-		map[string]float64{"A": 0.7, "B": 0.9},    // authorities
-		map[string]float64{"A": 3.0, "B": 1.0},    // criticalPathScore
+		map[string]float64{"A": 0.3, "B": 0.5}, // pageRank
+		map[string]float64{"A": 0.8, "B": 0.3}, // betweenness
+		map[string]float64{"A": 0.4, "B": 0.6}, // eigenvector
+		map[string]float64{"A": 1.0, "B": 2.0}, // hubs
+		map[string]float64{"A": 0.7, "B": 0.9}, // authorities
+		map[string]float64{"A": 3.0, "B": 1.0}, // criticalPathScore
 		nil, nil, nil, 0, nil,
 	)
 
@@ -165,12 +165,12 @@ func TestGenerateInsights_NegativeLimit(t *testing.T) {
 
 func TestGenerateInsights_LimitExceedsItems(t *testing.T) {
 	stats := NewGraphStatsForTest(
-		map[string]float64{"A": 0.3},    // pageRank
-		map[string]float64{"A": 0.8},    // betweenness
-		map[string]float64{"A": 0.4},    // eigenvector
-		map[string]float64{"A": 1.0},    // hubs
-		map[string]float64{"A": 0.7},    // authorities
-		map[string]float64{"A": 3.0},    // criticalPathScore
+		map[string]float64{"A": 0.3}, // pageRank
+		map[string]float64{"A": 0.8}, // betweenness
+		map[string]float64{"A": 0.4}, // eigenvector
+		map[string]float64{"A": 1.0}, // hubs
+		map[string]float64{"A": 0.7}, // authorities
+		map[string]float64{"A": 3.0}, // criticalPathScore
 		nil, nil, nil, 0, nil,
 	)
 
@@ -402,13 +402,13 @@ func TestInsights_EmptyFields(t *testing.T) {
 	insights := Insights{}
 
 	// All fields should be nil/empty by default
-	if insights.Bottlenecks != nil && len(insights.Bottlenecks) != 0 {
+	if len(insights.Bottlenecks) != 0 {
 		t.Error("Expected nil or empty Bottlenecks")
 	}
-	if insights.Keystones != nil && len(insights.Keystones) != 0 {
+	if len(insights.Keystones) != 0 {
 		t.Error("Expected nil or empty Keystones")
 	}
-	if insights.Cycles != nil && len(insights.Cycles) != 0 {
+	if len(insights.Cycles) != 0 {
 		t.Error("Expected nil or empty Cycles")
 	}
 	if insights.ClusterDensity != 0 {
