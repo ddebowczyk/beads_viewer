@@ -16,6 +16,15 @@ import (
 	"strings"
 )
 
+// Package-level compiled regexes for Cloudflare operations (avoids recompilation per call)
+var (
+	cfPagesDevURLRegex   = regexp.MustCompile(`https://[a-zA-Z0-9-]+\.pages\.dev[^\s]*`)
+	cfCustomDomainRegex  = regexp.MustCompile(`https://[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*`)
+	cfDeploymentIDRegex  = regexp.MustCompile(`[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}`)
+	cfNonAlphanumRegex   = regexp.MustCompile(`[^a-z0-9-]`)
+	cfMultipleHyphenRegex = regexp.MustCompile(`-+`)
+)
+
 // CloudflareDeployConfig configures Cloudflare Pages deployment.
 type CloudflareDeployConfig struct {
 	// ProjectName is the Cloudflare Pages project name
@@ -200,8 +209,7 @@ func GenerateHeadersFile(bundlePath string) error {
 // parseCloudflareURL extracts the deployment URL from wrangler output.
 func parseCloudflareURL(output string) string {
 	// Look for pattern: https://xxx.pages.dev or https://xxx-xxx.pages.dev
-	re := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.pages\.dev[^\s]*`)
-	match := re.FindString(output)
+	match := cfPagesDevURLRegex.FindString(output)
 	if match != "" {
 		// Clean up any trailing punctuation
 		match = strings.TrimRight(match, ".,;:\"'")
@@ -209,8 +217,7 @@ func parseCloudflareURL(output string) string {
 	}
 
 	// Also look for custom domain patterns in case configured
-	reDomain := regexp.MustCompile(`https://[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*`)
-	match = reDomain.FindString(output)
+	match = cfCustomDomainRegex.FindString(output)
 	if match != "" && strings.Contains(output, "pages") {
 		match = strings.TrimRight(match, ".,;:\"'")
 		return match
@@ -222,8 +229,7 @@ func parseCloudflareURL(output string) string {
 // parseDeploymentID extracts the deployment ID from wrangler output.
 func parseDeploymentID(output string) string {
 	// Look for deployment ID patterns (typically UUID-like)
-	re := regexp.MustCompile(`[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}`)
-	return re.FindString(output)
+	return cfDeploymentIDRegex.FindString(output)
 }
 
 // SuggestProjectName generates a suggested Cloudflare Pages project name.
@@ -255,13 +261,11 @@ func SuggestProjectName(bundlePath string) string {
 	name = strings.ReplaceAll(name, "_", "-")
 
 	// Remove any characters that aren't alphanumeric or hyphens
-	re := regexp.MustCompile(`[^a-z0-9-]`)
-	name = re.ReplaceAllString(name, "")
+	name = cfNonAlphanumRegex.ReplaceAllString(name, "")
 
 	// Remove leading/trailing hyphens and collapse multiple hyphens
 	name = strings.Trim(name, "-")
-	re = regexp.MustCompile(`-+`)
-	name = re.ReplaceAllString(name, "-")
+	name = cfMultipleHyphenRegex.ReplaceAllString(name, "-")
 
 	return name
 }

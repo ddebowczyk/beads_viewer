@@ -14,6 +14,9 @@ import (
 	"github.com/Dicklesworthstone/beads_viewer/pkg/model"
 )
 
+// Package-level compiled regex for slug creation (avoids recompilation per call)
+var slugNonAlphanumericRegex = regexp.MustCompile(`[^a-z0-9]+`)
+
 // sanitizeMermaidID ensures an ID is valid for Mermaid diagrams.
 // Mermaid node IDs must be alphanumeric with hyphens/underscores.
 func sanitizeMermaidID(id string) string {
@@ -310,8 +313,7 @@ func GenerateMarkdown(issues []model.Issue, title string) (string, error) {
 func createSlug(id string) string {
 	// Convert to lowercase and replace non-alphanumeric with hyphens
 	slug := strings.ToLower(id)
-	reg := regexp.MustCompile(`[^a-z0-9]+`)
-	slug = reg.ReplaceAllString(slug, "-")
+	slug = slugNonAlphanumericRegex.ReplaceAllString(slug, "-")
 	slug = strings.Trim(slug, "-")
 	return slug
 }
