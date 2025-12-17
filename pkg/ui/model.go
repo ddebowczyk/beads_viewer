@@ -1341,6 +1341,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// q closes current view or quits if at top level
 				if m.showDetails && !m.isSplitView {
 					m.showDetails = false
+					m.focused = focusList
 					return m, nil
 				}
 				if m.focused == focusInsights {
@@ -1363,6 +1364,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Escape closes modals and goes back
 				if m.showDetails && !m.isSplitView {
 					m.showDetails = false
+					m.focused = focusList
 					return m, nil
 				}
 				if m.focused == focusInsights {
@@ -1871,6 +1873,7 @@ func (m Model) handleBoardKeys(msg tea.KeyMsg) Model {
 				m.focused = focusDetail
 			} else {
 				m.showDetails = true
+				m.focused = focusDetail
 			}
 			m.updateViewportContent()
 		}
@@ -1912,6 +1915,7 @@ func (m Model) handleGraphKeys(msg tea.KeyMsg) Model {
 				m.focused = focusDetail
 			} else {
 				m.showDetails = true
+				m.focused = focusDetail
 			}
 			m.updateViewportContent()
 		}
@@ -1942,6 +1946,7 @@ func (m Model) handleActionableKeys(msg tea.KeyMsg) Model {
 				m.focused = focusDetail
 			} else {
 				m.showDetails = true
+				m.focused = focusDetail
 			}
 			m.updateViewportContent()
 		}
@@ -1980,6 +1985,7 @@ func (m Model) handleHistoryKeys(msg tea.KeyMsg) Model {
 				m.focused = focusDetail
 			} else {
 				m.showDetails = true
+				m.focused = focusDetail
 			}
 			m.updateViewportContent()
 		}
@@ -2148,6 +2154,7 @@ func (m Model) handleInsightsKeys(msg tea.KeyMsg) Model {
 				m.focused = focusDetail
 			} else {
 				m.showDetails = true
+				m.focused = focusDetail
 			}
 			m.updateViewportContent()
 		}
@@ -2161,6 +2168,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) Model {
 	case "enter":
 		if !m.isSplitView {
 			m.showDetails = true
+			m.focused = focusDetail
 			m.updateViewportContent()
 		}
 	case "home":
