@@ -3,28 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
-
-func (m *Model) requestViewportUpdate() tea.Cmd {
-	const throttleDelay = 100 * time.Millisecond
-
-	elapsed := time.Since(m.lastViewportUpdate)
-
-	if elapsed >= throttleDelay {
-		// Enough time passed - update immediately
-		m.updateViewportContent()
-		m.lastViewportUpdate = time.Now()
-		m.viewportUpdateNeeded = false
-		return nil
-	}
-
-	// Too soon - schedule delayed update
-	m.viewportUpdateNeeded = true
-	return DelayedViewportUpdateCmd(throttleDelay - elapsed)
-}
 
 func (m *Model) updateViewportContent() {
 	selectedItem := m.list.SelectedItem()

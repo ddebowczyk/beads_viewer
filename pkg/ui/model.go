@@ -83,9 +83,6 @@ func WaitForPhase2Cmd(stats *analysis.GraphStats) tea.Cmd {
 // FileChangedMsg is sent when the beads file changes on disk
 type FileChangedMsg struct{}
 
-// ViewportUpdateMsg is sent after a throttle delay to trigger a pending viewport update
-type ViewportUpdateMsg struct{}
-
 // WatchFileCmd returns a command that waits for file changes and sends FileChangedMsg
 func WatchFileCmd(w *watcher.Watcher) tea.Cmd {
 	return func() tea.Msg {
@@ -102,14 +99,6 @@ func CheckUpdateCmd() tea.Cmd {
 			return UpdateMsg{TagName: tag, URL: url}
 		}
 		return nil
-	}
-}
-
-// DelayedViewportUpdateCmd returns a command that sends ViewportUpdateMsg after a delay
-func DelayedViewportUpdateCmd(delay time.Duration) tea.Cmd {
-	return func() tea.Msg {
-		time.Sleep(delay)
-		return ViewportUpdateMsg{}
 	}
 }
 
@@ -307,10 +296,6 @@ type Model struct {
 	selectedSprint *model.Sprint
 	isSprintView   bool
 	sprintViewText string
-
-	// Performance: viewport update throttling (bv-xxx)
-	lastViewportUpdate   time.Time
-	viewportUpdateNeeded bool
 }
 
 // NewModel creates a new Model from the given issues
@@ -956,14 +941,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, WaitForPhase2Cmd(m.analysis))
 		return m, tea.Batch(cmds...)
 
-	case ViewportUpdateMsg:
-		// Delayed viewport update triggered by throttling
-		if m.viewportUpdateNeeded {
-			m.updateViewportContent()
-			m.viewportUpdateNeeded = false
-			m.lastViewportUpdate = time.Now()
-		}
-
 	case tea.KeyMsg:
 		// Clear status message on any keypress
 		m.statusMsg = ""
@@ -1320,6 +1297,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.isSplitView && !m.isBoardView {
 					if m.focused == focusList {
 						m.focused = focusDetail
+						// Update viewport when switching to detail view
+						m.updateViewportContent()
 					} else {
 						m.focused = focusList
 					}
@@ -1637,12 +1616,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusList:
 				if m.list.Index() > 0 {
 					m.list.Select(m.list.Index() - 1)
-					// Sync detail panel in split view mode (with throttling)
-					if m.isSplitView {
-						if cmd := m.requestViewportUpdate(); cmd != nil {
-							cmds = append(cmds, cmd)
-						}
-					}
+					// Don't auto-update viewport - prevents lag
 				}
 			case focusDetail:
 				m.viewport.ScrollUp(3)
@@ -1664,12 +1638,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case focusList:
 				if m.list.Index() < len(m.list.Items())-1 {
 					m.list.Select(m.list.Index() + 1)
-					// Sync detail panel in split view mode (with throttling)
-					if m.isSplitView {
-						if cmd := m.requestViewportUpdate(); cmd != nil {
-							cmds = append(cmds, cmd)
-						}
-					}
+					// Don't auto-update viewport - prevents lag
 				}
 			case focusDetail:
 				m.viewport.ScrollDown(3)
@@ -1755,12 +1724,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update viewport if list selection changed in split view (with throttling)
-	if m.isSplitView && m.focused == focusList {
-		if cmd := m.requestViewportUpdate(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
+	// Don't auto-update viewport on every keypress - only update when user switches focus with Tab
+	// This prevents lag with large task lists during rapid navigation
 
 	return m, tea.Batch(cmds...)
 }
