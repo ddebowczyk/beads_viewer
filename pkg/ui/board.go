@@ -16,9 +16,6 @@ type BoardModel struct {
 	activeColIdx []int  // Indices of non-empty columns (for navigation)
 	focusedCol   int    // Index into activeColIdx
 	selectedRow  [4]int // Store selection for each column
-	ready        bool
-	width        int
-	height       int
 	theme        Theme
 }
 
